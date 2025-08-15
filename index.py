@@ -17,6 +17,7 @@ embeddings = OpenAIEmbeddings() # use default model for now
 vector_store = Chroma(
     collection_name="legal_rag",
     embedding_function=embeddings,
+    persist_directory = "./legal_rag_vectorstore"
 )
 
 # Load
@@ -48,7 +49,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="index",
         description="indexes the json docs into the vector db for further querying",
-        epilog="supports json only for now"
+        epilog="supports json only for now",
+        usage="python index.py --jsonfile TheConstitutionOfKenya.json"
     )
     parser.add_argument("--jsonfile")
     args = parser.parse_args()
@@ -59,8 +61,3 @@ if __name__ == "__main__":
     docs = load_documents(path=args.jsonfile)
     chunks = chunk_documents(docs=docs)
     chunk_ids = index_chunks(docs=chunks)
-
-    ### TEMP TEST WITH RETRIEVE ###
-    retriever = vector_store.as_retriever(search_kwargs={"k": 1}) # k is the number of neighbor documents
-    docs_r = retriever.invoke("What is Kenya?")
-    print(docs_r)
