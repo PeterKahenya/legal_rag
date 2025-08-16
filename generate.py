@@ -15,6 +15,7 @@ from query_translation.rag_fusion import reciprocal_rank_fusion
 from query_translation.decomposition import query_decomposition_prompt, decomposition_prompt, format_qa_pair
 from query_translation.step_back import stepback_question_prompt, stepback_response_prompt
 from query_translation.hyde import hypothetical_doc_prompt, hyde_prompt
+from router import logical_router, semantic_router
 
 load_dotenv()
 embeddings = OpenAIEmbeddings() # use default model for now
@@ -57,6 +58,17 @@ if __name__ == "__main__":
 
     if not args.question:
         raise Exception("Please supply a question via --question argument")
+    
+    source_choice = logical_router.invoke({"question":args.question})
+    vector_store = Chroma(
+        collection_name=source_choice.datasource,
+        embedding_function=embeddings,
+        persist_directory = "./legal_rag_vectorstore"
+    )
+    retriever = vector_store.as_retriever(search_kwargs={"k": 1})
+
+    # semantic_response = semantic_router.invoke(args.question)
+    # print(semantic_response)
     
     match args.translation:
         case "multi":
