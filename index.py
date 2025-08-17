@@ -4,17 +4,25 @@ import argparse
 from typing import List
 import uuid
 import bs4
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import WebBaseLoader
 from dotenv import load_dotenv
 import requests
-
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from stores import constitution_retriever, caselaw_retriever, acts_retriever
 
 load_dotenv()
-embeddings = OpenAIEmbeddings() # use default model for now
+llm = ChatOpenAI(model="gpt-4.1-nano", temperature=0)
+
+def generate_summary(doc: str):
+    summarize_chain = ChatPromptTemplate.from_template("Summarize the following document in 100 words:\n\n{doc}") | llm | StrOutputParser()
+    summary = summarize_chain.invoke({"doc":doc})
+    print(summary)
+    print("\n--------\n")
+    return Document(page_content = summary)
 
 # Load
 def load_documents(path: str) -> List[Document]:
@@ -32,19 +40,24 @@ def load_documents(path: str) -> List[Document]:
 
 # Chunk
 def chunk_documents(docs: List[Document]) -> List[Document]:
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=50000, chunk_overlap=200)
     splits = text_splitter.split_documents(docs)
     return splits
 
 # Embed and Index
 def index_chunks(docs: List[Document], collection: str) -> List[str]:
-    vector_store = Chroma(
-        collection_name=collection,
-        embedding_function=embeddings,
-        persist_directory = "./legal_rag_vectorstore"
-    )
+    retriever = None
+    match collection:
+        case "constitution":
+            retriever = constitution_retriever
+        case "caselaw":
+            retriever = caselaw_retriever
+        case "acts":
+            retriever = acts_retriever
     uuids = [str(uuid.uuid4()) for _ in range(len(docs))]
-    return vector_store.add_documents(documents=docs, ids=uuids)
+    retriever.docstore.mset(list(zip(uuids, docs)))
+    summaries = [generate_summary(doc) for doc in docs]
+    return retriever.vectorstore.add_documents(documents=summaries, ids=uuids)
 
 def load_case(url: str):
     case_loader = WebBaseLoader(

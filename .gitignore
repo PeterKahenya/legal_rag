@@ -2,3 +2,4 @@ env
 .env
 legal_rag_vectorstore
 */__pycache__
+__pycache__

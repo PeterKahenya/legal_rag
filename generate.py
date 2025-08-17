@@ -16,6 +16,7 @@ from query_translation.decomposition import query_decomposition_prompt, decompos
 from query_translation.step_back import stepback_question_prompt, stepback_response_prompt
 from query_translation.hyde import hypothetical_doc_prompt, hyde_prompt
 from router import logical_router, semantic_router
+from stores import constitution_retriever, caselaw_retriever, acts_retriever
 
 load_dotenv()
 embeddings = OpenAIEmbeddings() # use default model for now
@@ -60,12 +61,16 @@ if __name__ == "__main__":
         raise Exception("Please supply a question via --question argument")
     
     source_choice = logical_router.invoke({"question":args.question})
-    vector_store = Chroma(
-        collection_name=source_choice.datasource,
-        embedding_function=embeddings,
-        persist_directory = "./legal_rag_vectorstore"
-    )
-    retriever = vector_store.as_retriever(search_kwargs={"k": 1})
+    match source_choice.datastore:
+        case "constitution":
+            _retriever = constitution_retriever
+        case "caselaw":
+            _retriever = caselaw_retriever
+        case "acts":
+            _retriever = acts_retriever
+
+    def retriever(q: str):
+        return _retriever.get_relevant_documents(q,num_results = 1)
 
     # semantic_response = semantic_router.invoke(args.question)
     # print(semantic_response)
